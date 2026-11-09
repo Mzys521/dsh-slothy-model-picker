@@ -640,8 +640,8 @@ window.__ModuleLoader__.load({
         ? h('div', { className: 'smp-status' }, tr('empty.models'))
         : h(Fragment, null,
           h('div', { className: 'smp-effort-header' },
-            h('button', { type: 'button', className: 'smp-effort-model', onClick: () => setPane('models'), title: tr('menu.model') },
-              h('strong', null, effortName),
+            h('button', { type: 'button', className: 'smp-effort-model' + (isMaxLevel ? ' smp-effort-model-max' : ''), onClick: () => setPane('models'), title: tr('menu.model') },
+              h('strong', { className: isMaxLevel ? 'smp-effort-name-max' : undefined }, effortName),
               h('span', null, effortChoice.model.name, h(ChevronRight))),
             h('button', {
               type: 'button',
@@ -743,8 +743,8 @@ window.__ModuleLoader__.load({
             h('span', { className: 'smp-row-label' }, tr('settings.preview.model')),
             h(Check)),
           h('div', { className: 'smp-effort-header' },
-            h('div', { className: 'smp-effort-model' },
-              h('strong', null, tr('settings.preview.effort')),
+            h('div', { className: 'smp-effort-model smp-effort-model-max' },
+              h('strong', { className: 'smp-effort-name-max' }, tr('settings.preview.effort')),
               h('span', null, tr('settings.preview.model')))),
           previewSlider))
 
@@ -862,7 +862,7 @@ window.__ModuleLoader__.load({
       '.smp-slider-range::-webkit-slider-thumb{appearance:none;width:28px;height:28px}',
       '.smp-slider-range::-moz-range-thumb{width:28px;height:28px}',
       '.smp-slider:has(.smp-slider-range:focus-visible){outline:2px solid var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe));outline-offset:4px}',
-      '.smp-trigger-effort-max{font-weight:600;color:var(--smp-max-color,var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe)))}',
+      '.smp-trigger-effort-max,.smp-effort-model-max strong{font-weight:600;color:var(--smp-max-color,var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe)))}',
       '@keyframes smp-sheen{from{background-position:220% 0}to{background-position:-120% 0}}',
       '@keyframes smp-flow{from{background-position:0 0}to{background-position:220% 0}}',
       '@keyframes smp-pulse{0%,100%{transform:scale(1);opacity:.22}50%{transform:scale(1.4);opacity:.34}}',
