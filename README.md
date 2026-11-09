@@ -42,9 +42,21 @@ plugin_manager  action: install_bundle
 - `Esc`、点击外部关闭；弹层以 portal 渲染到 `body`，不会被输入框底栏裁剪。
 - 模型切换走与内置选择器相同的 Host 路径（`directory.select({ provider, model, reasoningEffort })`），在下一请求生效；运行中的步骤保持它开始时的模型。
 
+## 自定义（背景 / 配色 / 优先级）
+
+打开 Harness 设置 →「外观」（Settings → Appearance）即可配置本插件：
+
+- **默认模式**：完全跟随 DSH 主题（当前行为），座位注册优先级保持 `-1`。
+- **自定义模式**：可设置背景色、背景图（URL / data URI）、强调色、轨道色、滑钮色、文字色；自定义值以**内联 CSS 自定义属性**写入，优先级最高，覆盖 DSH 主题与第三方皮肤；同时座位注册优先级提升到 `-1000`（最高），确保 `conversation.input.model` 上始终由本插件渲染。
+- 留空某项即回退到主题色；「恢复默认」清除全部自定义并回到默认模式。
+- 设置保存在当前浏览器的 `localStorage`（键 `dsh-slothy-model-picker:appearance:v1`），并有实时预览。
+
+> “最高优先级”分两层实现：样式层用内联自定义属性压过主题/皮肤声明；座位层用 `priority: -1000` 压过其他占用者。默认模式保持 `-1` 不变。
+
 ## 配色与主题
 
-- 滑块与弹层的颜色**全部来自 DSH 主题变量**（`--dsw-alias-*`）：填充/焦点/描边用 DSH 品牌色，轨道与滑钮用 DSH 表面色与描边色，随 DSH 的深色/浅色主题自动切换。
+- 默认模式下，滑块与弹层的颜色**全部来自 DSH 主题变量**（`--dsw-alias-*`）：填充/焦点/描边用 DSH 品牌色，轨道与滑钮用 DSH 表面色与描边色，随 DSH 的深色/浅色主题自动切换。
+- 自定义模式下可逐项覆盖上述颜色与弹层背景，未覆盖的仍走 DSH 主题变量。
 - 不写死 Slothy 的绿色或任何品牌色；`prefers-reduced-motion` 下关闭过渡动画。
 
 ## 实现
@@ -55,6 +67,11 @@ plugin_manager  action: install_bundle
   - 通过 `ctx.modelDirectories.directoryFor(sessionId)` 取 `store`（`useSyncExternalStore` 订阅）与 `load()` / `select()`；
   - 插件自有 locale 命名空间 `slothyModelPicker`（`en` / `zh`），随宿主语言切换。
 - `src/`：原始提取文件（`ModelPicker.tsx`、`ModelPicker.vue`、`types.ts`、原始说明），仅作来源与 Vue 宿主参考，运行时不加载。
+
+## 更新记录
+
+- `v1.1.0`：新增「外观」设置页（背景 / 配色自定义、默认/自定义模式、实时预览）；自定义模式启用最高样式与座位优先级。
+- `v1.0.0`：首个公开版本，滑块与弹层配色跟随 DSH 主题。
 
 ## 停用 / 卸载
 

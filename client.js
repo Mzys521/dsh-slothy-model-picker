@@ -34,6 +34,8 @@ window.__ModuleLoader__.load({
     const NS = 'slothyModelPicker'
     /** Lower priority renders in a `single` slot; the shipped seat registers at 0. */
     const SEAT_PRIORITY = -1
+    /** Custom appearance mode takes the strongest seat precedence available. */
+    const SEAT_PRIORITY_CUSTOM = -1000
     const EMPTY_STATE = { status: 'loading', current: null, pending: null, error: null, retainedEffort: undefined, groups: [], failures: [] }
 
     /** `model` namespace: visible labels only; ids never reach this dictionary. */
@@ -57,6 +59,27 @@ window.__ModuleLoader__.load({
       'action.retry': 'Retry',
       'effort.providerDefault': 'Provider default',
       'provider.account': 'DeepSeek account',
+      'settings.nav': 'Appearance',
+      'settings.title': 'Slothy model picker',
+      'settings.hint': 'Customize the model picker background and colors. Default mode follows the DSH theme; custom mode overrides it with the highest priority.',
+      'settings.mode': 'Mode',
+      'settings.default': 'Default',
+      'settings.custom': 'Custom',
+      'settings.customHint': 'Custom values are applied inline and win over the DSH theme and skins. Clear a value to fall back to the theme color.',
+      'settings.image': 'Background image',
+      'settings.imagePlaceholder': 'https://… or data:image/…',
+      'settings.surface': 'Background color',
+      'settings.accent': 'Accent color',
+      'settings.track': 'Track color',
+      'settings.thumb': 'Thumb color',
+      'settings.ink': 'Text color',
+      'settings.followTheme': 'Theme',
+      'settings.clear': 'Clear',
+      'settings.preview': 'Preview',
+      'settings.preview.caption': 'Select a model',
+      'settings.preview.model': 'DeepSeek V4',
+      'settings.preview.effort': 'High',
+      'settings.reset': 'Reset to default',
     }
     const zh = {
       'trigger.fallback': '请选择模型',
@@ -78,6 +101,27 @@ window.__ModuleLoader__.load({
       'action.retry': '重试',
       'effort.providerDefault': '服务商默认',
       'provider.account': 'DeepSeek 账号',
+      'settings.nav': '外观',
+      'settings.title': 'Slothy 模型选择器',
+      'settings.hint': '自定义模型选择器的背景与配色。默认模式跟随 DSH 主题；自定义模式以内联样式覆盖，优先级最高。',
+      'settings.mode': '模式',
+      'settings.default': '默认',
+      'settings.custom': '自定义',
+      'settings.customHint': '自定义值以内联样式生效，优先于 DSH 主题与皮肤；清空某项即回退到主题色。',
+      'settings.image': '背景图',
+      'settings.imagePlaceholder': 'https://… 或 data:image/…',
+      'settings.surface': '背景色',
+      'settings.accent': '强调色',
+      'settings.track': '轨道色',
+      'settings.thumb': '滑钮色',
+      'settings.ink': '文字色',
+      'settings.followTheme': '主题',
+      'settings.clear': '清除',
+      'settings.preview': '预览',
+      'settings.preview.caption': '选择模型',
+      'settings.preview.model': 'DeepSeek V4',
+      'settings.preview.effort': '高',
+      'settings.reset': '恢复默认',
     }
 
     /** Browser-language fallback used only when the seat's bound translator is absent. */
@@ -106,6 +150,106 @@ window.__ModuleLoader__.load({
           text = table[key] !== undefined ? table[key] : key
         }
         return interpolate(text, params)
+      }
+    }
+
+    /**
+     * Appearance settings: one browser-local store shared by the composer seat
+     * and the settings page. Custom values ride on inline CSS custom properties,
+     * which outrank theme/skin declarations (highest cascade priority); default
+     * mode leaves the current DSH theme untouched.
+     */
+    const APPEARANCE_KEY = 'dsh-slothy-model-picker:appearance:v1'
+    const APPEARANCE_DEFAULT = Object.freeze({ mode: 'default', surface: '', image: '', accent: '', track: '', thumb: '', ink: '' })
+    const appearanceListeners = new Set()
+    let appearanceState = null
+
+    function appearanceStorage() {
+      try {
+        return typeof localStorage === 'undefined' ? null : localStorage
+      } catch (error) {
+        return null
+      }
+    }
+
+    function normalizeAppearance(raw) {
+      const source = raw && typeof raw === 'object' ? raw : {}
+      const field = (key) => typeof source[key] === 'string' ? source[key].trim() : ''
+      return {
+        mode: source.mode === 'custom' ? 'custom' : 'default',
+        surface: field('surface'),
+        image: field('image'),
+        accent: field('accent'),
+        track: field('track'),
+        thumb: field('thumb'),
+        ink: field('ink'),
+      }
+    }
+
+    function getAppearance() {
+      if (appearanceState !== null) return appearanceState
+      let parsed = null
+      try {
+        const store = appearanceStorage()
+        const raw = store ? store.getItem(APPEARANCE_KEY) : null
+        if (raw) parsed = JSON.parse(raw)
+      } catch (error) {
+        parsed = null
+      }
+      appearanceState = normalizeAppearance(parsed)
+      return appearanceState
+    }
+
+    function setAppearance(patch) {
+      const current = getAppearance()
+      const next = normalizeAppearance(Object.assign({}, current, patch))
+      appearanceState = next
+      try {
+        const store = appearanceStorage()
+        if (store) store.setItem(APPEARANCE_KEY, JSON.stringify(next))
+      } catch (error) {
+        // Private mode or quota: keep the in-memory value for this page.
+      }
+      appearanceListeners.forEach((listener) => {
+        try {
+          listener(next)
+        } catch (error) {
+          // One failing subscriber must not block the others.
+        }
+      })
+    }
+
+    function resetAppearance() {
+      setAppearance(APPEARANCE_DEFAULT)
+    }
+
+    function subscribeAppearance(listener) {
+      appearanceListeners.add(listener)
+      return () => { appearanceListeners.delete(listener) }
+    }
+
+    function currentSeatPriority() {
+      return getAppearance().mode === 'custom' ? SEAT_PRIORITY_CUSTOM : SEAT_PRIORITY
+    }
+
+    function appearanceVars(appearance) {
+      if (!appearance || appearance.mode !== 'custom') return null
+      const style = {}
+      if (appearance.accent) style['--smp-accent'] = appearance.accent
+      if (appearance.track) style['--smp-track'] = appearance.track
+      if (appearance.thumb) style['--smp-thumb'] = appearance.thumb
+      if (appearance.ink) style['--smp-ink'] = appearance.ink
+      if (appearance.surface) style['--smp-surface'] = appearance.surface
+      return Object.keys(style).length === 0 ? null : style
+    }
+
+    function appearanceBackground(appearance) {
+      if (!appearance || appearance.mode !== 'custom' || appearance.image === '') return null
+      return {
+        backgroundImage: 'url(' + JSON.stringify(appearance.image) + ')',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
       }
     }
 
@@ -169,6 +313,9 @@ window.__ModuleLoader__.load({
       const load = props.load
       const select = props.select
       const tr = useMemo(() => makeTranslate(props.t), [props.t])
+      const appearance = useSyncExternalStore(subscribeAppearance, getAppearance, getAppearance)
+      const customVars = appearanceVars(appearance)
+      const customBackground = appearanceBackground(appearance)
 
       const subscribe = useCallback((notify) => {
         if (!directory) return () => {}
@@ -497,13 +644,13 @@ window.__ModuleLoader__.load({
           role: 'group',
           'aria-label': tr('menu.label'),
           'aria-busy': disabled,
-          style: popupStyle,
+          style: Object.assign({}, popupStyle, customVars || {}, customBackground || {}),
         }, popupBody)
         : null
 
       const popupNode = popup === null ? null : (createPortal ? createPortal(popup, document.body) : popup)
 
-      return h('div', { ref: rootRef, className: 'smp-root', onKeyDown: (event) => { if (event.key === 'Escape' && open) { event.stopPropagation() } } },
+      return h('div', { ref: rootRef, className: 'smp-root', style: customVars || undefined, onKeyDown: (event) => { if (event.key === 'Escape' && open) { event.stopPropagation() } } },
         h('style', null, PICKER_CSS),
         h('button', {
           ref: triggerRef,
@@ -524,12 +671,114 @@ window.__ModuleLoader__.load({
         popupNode)
     }
 
+    /** Color rows of the appearance page; an empty value falls back to the theme. */
+    const APPEARANCE_FIELDS = [
+      { key: 'surface', label: 'settings.surface', fallback: '#1f2320' },
+      { key: 'accent', label: 'settings.accent', fallback: '#4d6bfe' },
+      { key: 'track', label: 'settings.track', fallback: '#e8eaec' },
+      { key: 'thumb', label: 'settings.thumb', fallback: '#ffffff' },
+      { key: 'ink', label: 'settings.ink', fallback: '#1f2320' },
+    ]
+
+    /**
+     * Settings page: default mode leaves the DSH theme untouched (current
+     * appearance); custom mode applies inline overrides and raises the seat to
+     * the strongest registration priority.
+     */
+    function AppearanceSettings(props) {
+      const tr = useMemo(() => makeTranslate(props.t), [props.t])
+      const appearance = useSyncExternalStore(subscribeAppearance, getAppearance, getAppearance)
+      const custom = appearance.mode === 'custom'
+      const vars = appearanceVars(appearance) || {}
+      const background = appearanceBackground(appearance) || {}
+      const update = (patch) => setAppearance(patch)
+
+      const previewSlider = h('div', { className: 'smp-slider', style: { '--smp-level': '66%' } },
+        h('span', { className: 'smp-slider-visual' },
+          h('span', { className: 'smp-slider-fill' }),
+          h('span', { className: 'smp-slider-marks' }, [0, 1, 2].map((index) => h('span', { key: index }))),
+          h('span', { className: 'smp-slider-thumb' })))
+
+      const preview = h('div', { className: 'smp-set-preview' },
+        h('div', { className: 'smp-popup smp-set-preview-surface', style: Object.assign({}, vars, background) },
+          h('p', { className: 'smp-caption' }, tr('settings.preview.caption')),
+          h('p', { className: 'smp-provider' }, 'DeepSeek'),
+          h('div', { className: 'smp-row smp-set-preview-row', 'aria-pressed': true },
+            h('span', { className: 'smp-row-label' }, tr('settings.preview.model')),
+            h(Check)),
+          h('div', { className: 'smp-effort-header' },
+            h('div', { className: 'smp-effort-model' },
+              h('strong', null, tr('settings.preview.effort')),
+              h('span', null, tr('settings.preview.model')))),
+          previewSlider))
+
+      const fields = custom
+        ? h(Fragment, null,
+          h('div', { className: 'smp-set-field' },
+            h('span', { className: 'smp-set-label' }, tr('settings.image')),
+            h('input', {
+              className: 'smp-set-input',
+              type: 'text',
+              value: appearance.image,
+              placeholder: tr('settings.imagePlaceholder'),
+              onChange: (event) => update({ image: event.currentTarget.value }),
+            })),
+          APPEARANCE_FIELDS.map((field) => h('div', { className: 'smp-set-field', key: field.key },
+            h('span', { className: 'smp-set-label' }, tr(field.label)),
+            h('div', { className: 'smp-set-color' },
+              h('input', {
+                className: 'smp-set-swatch',
+                type: 'color',
+                value: appearance[field.key] || field.fallback,
+                'aria-label': tr(field.label),
+                onChange: (event) => update({ [field.key]: event.currentTarget.value }),
+              }),
+              h('span', { className: 'smp-set-value' }, appearance[field.key] || tr('settings.followTheme')),
+              appearance[field.key]
+                ? h('button', {
+                  className: 'smp-set-clear',
+                  type: 'button',
+                  title: tr('settings.clear'),
+                  'aria-label': tr('settings.clear'),
+                  onClick: () => update({ [field.key]: '' }),
+                }, '×')
+                : null))))
+        : null
+
+      return h('div', { className: 'smp-set' },
+        h('style', null, PICKER_CSS + '\n' + SETTINGS_CSS),
+        h('h2', { className: 'smp-set-title' }, tr('settings.title')),
+        h('p', { className: 'smp-set-hint' }, tr('settings.hint')),
+        h('div', { className: 'smp-set-mode' },
+          h('span', { className: 'smp-set-label' }, tr('settings.mode')),
+          h('div', { className: 'smp-set-seg' },
+            h('button', {
+              type: 'button',
+              className: 'smp-set-seg-button',
+              'aria-pressed': appearance.mode === 'default',
+              onClick: () => update({ mode: 'default' }),
+            }, tr('settings.default')),
+            h('button', {
+              type: 'button',
+              className: 'smp-set-seg-button',
+              'aria-pressed': custom,
+              onClick: () => update({ mode: 'custom' }),
+            }, tr('settings.custom')))),
+        custom ? h('p', { className: 'smp-set-hint' }, tr('settings.customHint')) : null,
+        fields,
+        h('div', { className: 'smp-set-preview-wrap' },
+          h('span', { className: 'smp-set-label' }, tr('settings.preview')),
+          preview),
+        h('div', { className: 'smp-set-actions' },
+          h('button', { type: 'button', className: 'smp-set-action', onClick: resetAppearance }, tr('settings.reset'))))
+    }
+
     /** Styles use host theme aliases; brand color only marks the current effort. */
     const PICKER_CSS = [
       '.smp-root{position:relative;display:inline-flex;align-items:center;min-width:0;font:inherit}',
       '.smp-trigger{display:flex;align-items:center;gap:4px;height:28px;max-width:min(280px,34cqw);padding:0 6px 0 8px;border:0;border-radius:var(--dsw-radius-sm,6px);background:transparent;color:var(--dsw-alias-label-secondary,#6b7280);font:inherit;font-size:13px;line-height:20px;cursor:pointer;outline:none;min-width:0}',
       '.smp-trigger:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover,rgba(0,0,0,.06));color:var(--dsw-alias-label-primary,#1f2320)}',
-      '.smp-trigger:focus-visible{box-shadow:0 0 0 2px var(--dsw-alias-brand-primary,#4d6bfe)}',
+      '.smp-trigger:focus-visible{box-shadow:0 0 0 2px var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe))}',
       '.smp-trigger:disabled{color:var(--dsw-alias-label-dimmed,#9aa0a6);cursor:default}',
       '.smp-trigger-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:var(--dsh-composer-model-text-display,block)}',
       '.smp-trigger-effort{flex:none;max-width:7em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-caption,#8a8f88);display:var(--dsh-composer-model-text-display,block)}',
@@ -537,8 +786,8 @@ window.__ModuleLoader__.load({
       '.smp-chevron{flex:none;width:15px;height:15px;color:var(--dsw-alias-label-caption,#8a8f88)}',
       '.smp-chevron-inline{display:inline;width:12px;height:12px;vertical-align:middle;margin-inline-start:2px}',
       '.smp-icon{width:15px;height:15px;flex:none}',
-      '.smp-check{flex:none;width:15px;height:15px;color:var(--dsw-alias-brand-primary,#4d6bfe)}',
-      '.smp-popup{position:fixed;z-index:1100;box-sizing:border-box;display:flex;flex-direction:column;overflow:auto;padding:6px;border:1px solid var(--dsw-alias-border-l1,rgba(0,0,0,.08));border-radius:var(--dsw-radius-md,12px);background:var(--dsw-alias-bg-overlay,#fff);color:var(--dsw-alias-label-primary,#1f2320);box-shadow:var(--dsw-elevation-prominent,0 12px 32px rgba(0,0,0,.18));font-size:13px;line-height:20px}',
+      '.smp-check{flex:none;width:15px;height:15px;color:var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe))}',
+      '.smp-popup{position:fixed;z-index:1100;box-sizing:border-box;display:flex;flex-direction:column;overflow:auto;padding:6px;border:1px solid var(--dsw-alias-border-l1,rgba(0,0,0,.08));border-radius:var(--dsw-radius-md,12px);background:var(--smp-surface,var(--dsw-alias-bg-overlay,#fff));color:var(--smp-ink,var(--dsw-alias-label-primary,#1f2320));box-shadow:var(--dsw-elevation-prominent,0 12px 32px rgba(0,0,0,.18));font-size:13px;line-height:20px}',
       '.smp-caption{margin:0;padding:4px 8px;color:var(--dsw-alias-label-secondary,#6b7280);font-size:12px;line-height:18px}',
       '.smp-provider{margin:4px 0 0;padding:4px 8px;color:var(--dsw-alias-label-secondary,#6b7280);font-size:12px;line-height:18px;font-weight:600}',
       '.smp-row{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:7px 8px;border:0;border-radius:var(--dsw-radius-sm,8px);background:transparent;color:inherit;font:inherit;text-align:start;overflow-wrap:anywhere;cursor:pointer}',
@@ -550,27 +799,52 @@ window.__ModuleLoader__.load({
       '.smp-error{color:var(--dsw-alias-state-error-primary,#d33)}',
       '.smp-warning{color:var(--dsw-alias-state-warn-primary,#a66a00)}',
       '.smp-retry{margin-inline-start:8px;padding:2px 8px;border:1px solid var(--dsw-alias-border-l2,rgba(0,0,0,.16));border-radius:6px;background:transparent;color:inherit;font:inherit;font-size:12px;cursor:pointer}',
-      '.smp-spinner{flex:none;width:12px;height:12px;border-radius:50%;border:2px solid var(--dsw-alias-border-l2,rgba(0,0,0,.2));border-top-color:var(--dsw-alias-brand-primary,#4d6bfe);animation:smp-spin .8s linear infinite}',
+      '.smp-spinner{flex:none;width:12px;height:12px;border-radius:50%;border:2px solid var(--dsw-alias-border-l2,rgba(0,0,0,.2));border-top-color:var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe));animation:smp-spin .8s linear infinite}',
       '@keyframes smp-spin{to{transform:rotate(360deg)}}',
       '.smp-effort-header{display:grid;grid-template-columns:26px minmax(0,1fr) 26px;align-items:start;gap:6px;color:var(--dsw-alias-label-secondary,#6b7280)}',
       '.smp-effort-model{grid-column:2;display:grid;justify-items:center;gap:2px;padding:6px 4px;border:0;border-radius:var(--dsw-radius-sm,8px);background:var(--dsw-alias-bg-layer-2,#f1f2f4);color:inherit;font:inherit;text-align:center;overflow-wrap:anywhere;cursor:pointer}',
-      '.smp-effort-model strong{color:var(--dsw-alias-brand-primary,#4d6bfe);font-weight:600}',
+      '.smp-effort-model strong{color:var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe));font-weight:600}',
       '.smp-effort-model span{font-size:12px;display:inline-flex;align-items:center;gap:2px;min-width:0}',
       '.smp-effort-reset{grid-column:3;display:grid;place-items:center;height:28px;border:0;border-radius:var(--dsw-radius-sm,8px);background:transparent;color:inherit;cursor:pointer}',
       '.smp-effort-reset:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover,rgba(0,0,0,.06))}',
       '.smp-effort-reset:disabled{opacity:.45;cursor:default}',
-      '.smp-slider{position:relative;height:20px;margin:14px 8px 6px;border-radius:999px;background:var(--dsw-alias-bg-layer-2,#e8eaec);box-shadow:inset 0 0 0 1px var(--dsw-alias-border-l1,rgba(0,0,0,.08))}',
+      '.smp-slider{position:relative;height:20px;margin:14px 8px 6px;border-radius:999px;background:var(--smp-track,var(--dsw-alias-bg-layer-2,#e8eaec));box-shadow:inset 0 0 0 1px var(--dsw-alias-border-l1,rgba(0,0,0,.08))}',
       '.smp-slider-visual{position:absolute;inset:0 11px;pointer-events:none}',
-      '.smp-slider-fill{position:absolute;inset:0 auto 0 -11px;width:calc(11px + var(--smp-level));border-radius:999px;background:var(--dsw-alias-brand-primary,#4d6bfe);transition:width .18s ease-out}',
+      '.smp-slider-fill{position:absolute;inset:0 auto 0 -11px;width:calc(11px + var(--smp-level));border-radius:999px;background:var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe));transition:width .18s ease-out}',
       '.smp-slider-max .smp-slider-fill{width:calc(22px + var(--smp-level))}',
       '.smp-slider-marks{position:absolute;inset:0 -2px;display:flex;align-items:center;justify-content:space-between}',
       '.smp-slider-marks>span{width:4px;height:4px;border-radius:50%;background:var(--dsw-alias-bg-overlay,#fff);opacity:.8}',
-      '.smp-slider-thumb{position:absolute;top:50%;left:var(--smp-level);box-sizing:border-box;width:20px;height:20px;transform:translate(-50%,-50%);border-radius:50%;border:2px solid var(--dsw-alias-brand-primary,#4d6bfe);background:var(--dsw-alias-bg-overlay,#fff);transition:left .18s ease-out}',
+      '.smp-slider-thumb{position:absolute;top:50%;left:var(--smp-level);box-sizing:border-box;width:20px;height:20px;transform:translate(-50%,-50%);border-radius:50%;border:2px solid var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe));background:var(--smp-thumb,var(--dsw-alias-bg-overlay,#fff));transition:left .18s ease-out}',
       '.smp-slider-range{position:absolute;inset:0;width:100%;height:100%;margin:0;appearance:none;opacity:0;cursor:pointer}',
       '.smp-slider-range::-webkit-slider-thumb{appearance:none;width:22px;height:22px}',
       '.smp-slider-range::-moz-range-thumb{width:22px;height:22px}',
-      '.smp-slider:has(.smp-slider-range:focus-visible){outline:2px solid var(--dsw-alias-brand-primary,#4d6bfe);outline-offset:4px}',
+      '.smp-slider:has(.smp-slider-range:focus-visible){outline:2px solid var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe));outline-offset:4px}',
       '@media (prefers-reduced-motion: reduce){.smp-slider-fill,.smp-slider-thumb{transition:none}.smp-spinner{animation:none}}',
+    ].join('\n')
+
+    /** Settings-page styles: host tokens only, plus a static preview surface. */
+    const SETTINGS_CSS = [
+      '.smp-set{display:flex;flex-direction:column;gap:12px;padding:8px 4px 24px;max-width:640px;color:var(--dsw-alias-label-primary,#1f2320);font-size:13px;line-height:20px}',
+      '.smp-set-title{margin:0;font-size:16px;line-height:24px;font-weight:600}',
+      '.smp-set-hint{margin:0;color:var(--dsw-alias-label-secondary,#6b7280);font-size:12px;line-height:18px}',
+      '.smp-set-mode{display:flex;align-items:center;gap:12px;flex-wrap:wrap}',
+      '.smp-set-label{min-width:72px;color:var(--dsw-alias-label-secondary,#6b7280);font-size:12px}',
+      '.smp-set-seg{display:inline-flex;gap:2px;padding:2px;border-radius:8px;background:var(--dsw-alias-bg-layer-2,#f1f2f4)}',
+      '.smp-set-seg-button{padding:4px 12px;border:0;border-radius:6px;background:transparent;color:inherit;font:inherit;font-size:12px;cursor:pointer}',
+      '.smp-set-seg-button[aria-pressed="true"]{background:var(--dsw-alias-bg-overlay,#fff);box-shadow:0 1px 2px rgba(0,0,0,.12)}',
+      '.smp-set-field{display:flex;align-items:center;gap:12px;flex-wrap:wrap}',
+      '.smp-set-input{flex:1 1 280px;min-width:0;padding:6px 8px;border:1px solid var(--dsw-alias-border-l2,rgba(0,0,0,.16));border-radius:6px;background:var(--dsw-alias-bg-base,transparent);color:inherit;font:inherit;font-size:12px}',
+      '.smp-set-color{display:inline-flex;align-items:center;gap:8px}',
+      '.smp-set-swatch{width:32px;height:24px;padding:0;border:1px solid var(--dsw-alias-border-l2,rgba(0,0,0,.16));border-radius:6px;background:transparent;cursor:pointer}',
+      '.smp-set-value{color:var(--dsw-alias-label-secondary,#6b7280);font-size:12px}',
+      '.smp-set-clear{width:20px;height:20px;border:0;border-radius:50%;background:var(--dsw-alias-interactive-bg-hover,rgba(0,0,0,.06));color:inherit;cursor:pointer;line-height:1;font-size:12px}',
+      '.smp-set-preview-wrap{display:flex;flex-direction:column;gap:8px}',
+      '.smp-set-preview{padding:12px;border:1px dashed var(--dsw-alias-border-l2,rgba(0,0,0,.16));border-radius:12px;background:var(--dsw-alias-bg-base,transparent)}',
+      '.smp-popup.smp-set-preview-surface{position:static;width:min(100%,320px);max-height:none;margin:0 auto}',
+      '.smp-set-preview-row{width:100%;text-align:start}',
+      '.smp-set-actions{display:flex;gap:8px}',
+      '.smp-set-action{padding:6px 12px;border:1px solid var(--dsw-alias-border-l2,rgba(0,0,0,.16));border-radius:8px;background:transparent;color:inherit;font:inherit;font-size:12px;cursor:pointer}',
+      '.smp-set-action:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(0,0,0,.06))}',
     ].join('\n')
 
     /**
@@ -582,8 +856,22 @@ window.__ModuleLoader__.load({
      */
     function apply(ctx) {
       const locale = ctx.get('locale')
+      const t = locale && typeof locale.bind === 'function' ? locale.bind(NS) : makeTranslate(undefined)
       if (locale && typeof locale.register === 'function') {
         ctx.effect(() => locale.register(NS, { en, zh }), 'slothy-model-picker: dictionaries')
+      }
+
+      // Appearance page: independent of the model service, so it still opens when
+      // the seat itself cannot register.
+      const pluginSlots = ctx.get('slots')
+      if (pluginSlots && typeof pluginSlots.inject === 'function') {
+        ctx.effect(() => pluginSlots.inject('settings.section', () => pluginSlots.register({
+          name: 'settings.section',
+          id: 'slothy-picker',
+          order: 35,
+          label: () => t('settings.nav'),
+          inject: () => ({ t }),
+        }, AppearanceSettings)), 'slothy-model-picker: appearance settings')
       }
 
       const mount = (scope) => {
@@ -593,31 +881,57 @@ window.__ModuleLoader__.load({
           console.warn('[slothy-model-picker] model selection service unavailable; keeping the shipped model control')
           return
         }
-        return slots.inject('conversation.input.model', () => slots.register({
-          name: 'conversation.input.model',
-          priority: SEAT_PRIORITY,
-          locale: NS,
-          inject: (sessionId) => {
-            try {
-              const directory = models.directoryFor(sessionId)
-              return {
-                available: true,
-                directory: directory.store,
-                load: () => {
+        return slots.inject('conversation.input.model', () => {
+          let record = null
+          const register = () => {
+            const priority = currentSeatPriority()
+            if (record !== null) {
+              if (record.priority === priority) return
+              record.dispose()
+              record = null
+            }
+            record = {
+              priority,
+              dispose: slots.register({
+                name: 'conversation.input.model',
+                priority,
+                locale: NS,
+                inject: (sessionId) => {
                   try {
-                    const opening = directory.load()
-                    if (opening && typeof opening.catch === 'function') opening.catch(() => {})
+                    const directory = models.directoryFor(sessionId)
+                    return {
+                      available: true,
+                      directory: directory.store,
+                      load: () => {
+                        try {
+                          const opening = directory.load()
+                          if (opening && typeof opening.catch === 'function') opening.catch(() => {})
+                        } catch (error) {
+                          // The directory publishes its own load failure on the store.
+                        }
+                      },
+                      select: (selection) => directory.select(selection),
+                    }
                   } catch (error) {
-                    // The directory publishes its own load failure on the store.
+                    return { available: false }
                   }
                 },
-                select: (selection) => directory.select(selection),
-              }
-            } catch (error) {
-              return { available: false }
+              }, ModelPickerSeat),
             }
-          },
-        }, ModelPickerSeat))
+          }
+          register()
+          const unsubscribe = subscribeAppearance(() => {
+            if (record === null) return
+            if (record.priority !== currentSeatPriority()) register()
+          })
+          return () => {
+            unsubscribe()
+            if (record !== null) {
+              record.dispose()
+              record = null
+            }
+          }
+        })
       }
 
       if (typeof ctx.inject === 'function') {
