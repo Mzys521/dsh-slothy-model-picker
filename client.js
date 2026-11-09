@@ -358,6 +358,7 @@ window.__ModuleLoader__.load({
       const [position, setPosition] = useState(null)
       const dragRef = useRef(null)
       const dragRaf = useRef(null)
+      const settledRef = useRef(false)
       const rootRef = useRef(null)
       const triggerRef = useRef(null)
       const popupRef = useRef(null)
@@ -399,6 +400,22 @@ window.__ModuleLoader__.load({
         : tr('trigger.ariaEffort', { model: modelLabel, effort: triggerEffort })
       const pending = state.pending || null
       const disabled = busy || pending !== null
+
+      // Release the settle lock once the store catches up with the chosen level,
+      // or after a fail-safe delay, so the thumb slides smoothly instead of snapping.
+      useEffect(() => {
+        if (dragIndex === null || !settledRef.current) return
+        if (dragIndex === activeIndex && pending === null) {
+          settledRef.current = false
+          setDragIndex(null)
+          return
+        }
+        const timer = setTimeout(() => {
+          settledRef.current = false
+          setDragIndex(null)
+        }, 1200)
+        return () => clearTimeout(timer)
+      }, [dragIndex, activeIndex, pending])
 
       const place = useCallback(() => {
         const trigger = triggerRef.current
@@ -540,10 +557,10 @@ window.__ModuleLoader__.load({
 
       const chooseEffort = (level) => {
         const target = effortChoice
-        if (!target || !level) return
+        if (!target || !level) return Promise.resolve(false)
         const selection = { provider: target.group.id, model: target.model.id }
         if (level.id !== undefined) selection.reasoningEffort = level.id
-        void selectWith(selection)
+        return selectWith(selection)
       }
 
       const restoreDefault = () => {
@@ -597,7 +614,12 @@ window.__ModuleLoader__.load({
           }))),
         groups.length === 0 && state.status === 'ready' ? h('div', { className: 'smp-status' }, tr('empty.models')) : null)
 
-      /** Commit the drag/keys' final position so a fast drag sends one selection, not one per step. */
+      /**
+       * Commit the drag/keys' final position. The thumb is locked at the
+       * released level while the selection settles, so it never snaps back to
+       * the old level first; it transitions smoothly once the store confirms
+       * (or slides back on failure).
+       */
       const commitDrag = () => {
         if (dragRaf.current !== null) {
           cancelAnimationFrame(dragRaf.current)
@@ -605,14 +627,26 @@ window.__ModuleLoader__.load({
         }
         const index = dragRef.current
         dragRef.current = null
-        setDragIndex(null)
-        if (index === null || index === activeIndex) return
+        if (index === null || index === activeIndex) {
+          setDragIndex(null)
+          return
+        }
         const level = levels[index]
-        if (level) chooseEffort(level)
+        if (!level) {
+          setDragIndex(null)
+          return
+        }
+        setDragIndex(index)
+        settledRef.current = false
+        chooseEffort(level).then((ok) => {
+          if (ok) settledRef.current = true
+          else setDragIndex(null)
+        })
       }
 
       /** Coalesce input events into one render per animation frame while dragging. */
       const dragTo = (next) => {
+        settledRef.current = false
         dragRef.current = next
         if (dragRaf.current === null) {
           dragRaf.current = requestAnimationFrame(() => {
@@ -860,14 +894,14 @@ window.__ModuleLoader__.load({
       '.smp-effort-reset:disabled{opacity:.45;cursor:default}',
       '.smp-slider{position:relative;height:32px;margin:18px 8px 10px;border-radius:999px;background:var(--smp-track,var(--dsw-alias-bg-layer-2,#e8eaec));box-shadow:inset 0 0 0 1px var(--dsw-alias-border-l1,rgba(0,0,0,.08)),inset 0 2px 6px rgba(0,0,0,.10);overflow:hidden;contain:paint}',
       '.smp-slider-visual{position:absolute;inset:0 16px;pointer-events:none}',
-      '.smp-slider-fill{position:absolute;z-index:1;inset:0 auto 0 -16px;width:calc(16px + var(--smp-level));border-radius:999px;overflow:hidden;background:var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe));transition:width .18s ease-out}',
+      '.smp-slider-fill{position:absolute;z-index:1;inset:0 auto 0 -16px;width:calc(16px + var(--smp-level));border-radius:999px;overflow:hidden;background:var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe));transition:width .22s ease-out}',
       '.smp-slider-dragging .smp-slider-fill,.smp-slider-dragging .smp-slider-thumb{transition:none}',
       '.smp-slider-fill::after{content:"";position:absolute;inset:0;border-radius:inherit;background:linear-gradient(105deg,transparent 25%,rgba(255,255,255,.55) 48%,transparent 72%);background-size:220% 100%;opacity:0;pointer-events:none;mix-blend-mode:screen}',
       '.smp-slider-max .smp-slider-fill{width:calc(32px + var(--smp-level));background:linear-gradient(100deg,var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe)),var(--smp-max-color,#ffb300),var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe)));background-size:220% 100%;animation:smp-flow 2.4s linear infinite;box-shadow:inset 0 0 0 1px rgba(255,255,255,.22),inset 0 0 12px -4px var(--smp-max-color,#ffb300)}',
       '.smp-slider-max .smp-slider-fill::after{opacity:1;animation:smp-sheen 1.5s linear infinite}',
       '.smp-slider-marks{position:absolute;inset:0 -3px;display:flex;align-items:center;justify-content:space-between;z-index:2}',
       '.smp-slider-marks>span{width:5px;height:5px;border-radius:50%;background:var(--dsw-alias-bg-overlay,#fff);opacity:.85}',
-      '.smp-slider-thumb{position:absolute;z-index:3;top:50%;left:var(--smp-level);box-sizing:border-box;width:28px;height:28px;transform:translate(-50%,-50%);border-radius:50%;border:3px solid var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe));background:var(--smp-thumb,var(--dsw-alias-bg-overlay,#fff));box-shadow:0 2px 8px rgba(0,0,0,.28);transition:left .18s ease-out,box-shadow .25s ease}',
+      '.smp-slider-thumb{position:absolute;z-index:3;top:50%;left:var(--smp-level);box-sizing:border-box;width:28px;height:28px;transform:translate(-50%,-50%);border-radius:50%;border:3px solid var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe));background:var(--smp-thumb,var(--dsw-alias-bg-overlay,#fff));box-shadow:0 2px 8px rgba(0,0,0,.28);transition:left .22s ease-out,box-shadow .25s ease}',
       '.smp-slider-thumb::before{content:"";position:absolute;inset:-5px;border-radius:50%;background:var(--smp-max-color,#ffb300);opacity:0;transform:scale(.7);transition:opacity .25s ease,transform .25s ease}',
       '.smp-slider-max .smp-slider-thumb{border-color:var(--smp-max-color,#ffb300);box-shadow:0 0 12px -2px var(--smp-max-color,#ffb300),0 2px 8px rgba(0,0,0,.28)}',
       '.smp-slider-max .smp-slider-thumb::before{opacity:.3;transform:scale(1);animation:smp-pulse 1.8s ease-in-out infinite}',
