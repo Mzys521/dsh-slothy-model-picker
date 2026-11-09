@@ -73,6 +73,7 @@ window.__ModuleLoader__.load({
       'settings.track': 'Track color',
       'settings.thumb': 'Thumb color',
       'settings.ink': 'Text color',
+      'settings.maxColor': 'Max effort color',
       'settings.followTheme': 'Theme',
       'settings.clear': 'Clear',
       'settings.preview': 'Preview',
@@ -115,6 +116,7 @@ window.__ModuleLoader__.load({
       'settings.track': '轨道色',
       'settings.thumb': '滑钮色',
       'settings.ink': '文字色',
+      'settings.maxColor': '最高档位色',
       'settings.followTheme': '主题',
       'settings.clear': '清除',
       'settings.preview': '预览',
@@ -160,7 +162,7 @@ window.__ModuleLoader__.load({
      * mode leaves the current DSH theme untouched.
      */
     const APPEARANCE_KEY = 'dsh-slothy-model-picker:appearance:v1'
-    const APPEARANCE_DEFAULT = Object.freeze({ mode: 'default', surface: '', image: '', accent: '', track: '', thumb: '', ink: '' })
+    const APPEARANCE_DEFAULT = Object.freeze({ mode: 'default', surface: '', image: '', accent: '', track: '', thumb: '', ink: '', maxColor: '' })
     const appearanceListeners = new Set()
     let appearanceState = null
 
@@ -183,6 +185,7 @@ window.__ModuleLoader__.load({
         track: field('track'),
         thumb: field('thumb'),
         ink: field('ink'),
+        maxColor: field('maxColor'),
       }
     }
 
@@ -240,6 +243,7 @@ window.__ModuleLoader__.load({
       if (appearance.thumb) style['--smp-thumb'] = appearance.thumb
       if (appearance.ink) style['--smp-ink'] = appearance.ink
       if (appearance.surface) style['--smp-surface'] = appearance.surface
+      if (appearance.maxColor) style['--smp-max-color'] = appearance.maxColor
       return Object.keys(style).length === 0 ? null : style
     }
 
@@ -251,6 +255,27 @@ window.__ModuleLoader__.load({
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
       }
+    }
+
+    /** Deterministic particle burst shape; every dot gets its own travelling vector. */
+    const PARTICLES = Array.from({ length: 16 }, (_, index) => {
+      const angle = (Math.PI * 2 * index) / 16 + (index % 3) * 0.18
+      const distance = 16 + (index % 5) * 8
+      return {
+        key: index,
+        style: {
+          '--smp-p-x': Math.round(Math.cos(angle) * distance) + 'px',
+          '--smp-p-y': Math.round(Math.sin(angle) * distance) + 'px',
+          '--smp-p-delay': (index * 0.075).toFixed(3) + 's',
+          '--smp-p-size': (2 + (index % 3)) + 'px',
+        },
+      }
+    })
+
+    /** One burst layer around the slider thumb. */
+    function ParticleField() {
+      return h('span', { className: 'smp-particles', 'aria-hidden': true },
+        PARTICLES.map((particle) => h('span', { key: particle.key, className: 'smp-particle', style: particle.style })))
     }
 
     function icon(paths, props) {
@@ -361,6 +386,8 @@ window.__ModuleLoader__.load({
       const triggerEffort = currentLevels.length
         ? (currentLevels.find((level) => level.id === currentEffortId) || {}).name || state.retainedEffort || tr('effort.providerDefault')
         : undefined
+      const currentEffortIndex = currentLevels.findIndex((level) => level.id === currentEffortId)
+      const maxEffortActive = currentLevels.length > 1 && currentEffortIndex === currentLevels.length - 1
       const modelLabel = currentChoice
         ? currentChoice.model.name
         : (groups.length === 0 && (state.status === 'loading' || state.status === 'idle') ? tr('trigger.loading') : tr('trigger.fallback'))
@@ -376,7 +403,7 @@ window.__ModuleLoader__.load({
         const rect = trigger.getBoundingClientRect()
         const viewportWidth = window.innerWidth
         const viewportHeight = window.innerHeight
-        const width = Math.max(220, Math.min(300, viewportWidth - 24))
+        const width = Math.max(260, Math.min(340, viewportWidth - 24))
         const right = Math.max(12, Math.min(viewportWidth - rect.right, viewportWidth - width - 12))
         const bottom = Math.max(12, viewportHeight - rect.top + 8)
         const maxHeight = Math.max(180, Math.min(440, rect.top - 24))
@@ -577,15 +604,18 @@ window.__ModuleLoader__.load({
         if (level) chooseEffort(level)
       }
 
+      const dragging = dragIndex !== null
+      const isMaxLevel = levels.length > 1 && shownIndex === levels.length - 1
       const slider = levels.length > 0
         ? h('div', {
-          className: 'smp-slider' + (levels.length > 1 && shownIndex === levels.length - 1 ? ' smp-slider-max' : ''),
+          className: 'smp-slider' + (isMaxLevel ? ' smp-slider-max' : '') + (dragging ? ' smp-slider-dragging' : ''),
           style: { '--smp-level': levelPosition },
         },
         h('span', { className: 'smp-slider-visual', 'aria-hidden': true },
           h('span', { className: 'smp-slider-fill' }),
           h('span', { className: 'smp-slider-marks' }, levels.map((level) => h('span', { key: level.id }))),
-          h('span', { className: 'smp-slider-thumb' })),
+          h('span', { className: 'smp-slider-thumb' }),
+          dragging || isMaxLevel ? h(ParticleField) : null),
         h('input', {
           className: 'smp-slider-range',
           type: 'range',
@@ -632,10 +662,10 @@ window.__ModuleLoader__.load({
           position: 'fixed',
           right: (position ? position.right : 12) + 'px',
           bottom: (position ? position.bottom : 12) + 'px',
-          width: (position ? position.width : 280) + 'px',
+          width: (position ? position.width : 320) + 'px',
           maxHeight: (position ? position.maxHeight : 360) + 'px',
         }
-        : { position: 'absolute', right: 0, bottom: 'calc(100% + 12px)', width: 'min(300px, 84vw)', maxHeight: 'min(440px, 58dvh)' }
+        : { position: 'absolute', right: 0, bottom: 'calc(100% + 12px)', width: 'min(340px, 88vw)', maxHeight: 'min(440px, 58dvh)' }
 
       const popup = open
         ? h('div', {
@@ -666,7 +696,7 @@ window.__ModuleLoader__.load({
         },
         h(ModelGlyph),
         h('span', { className: 'smp-trigger-name' }, modelLabel),
-        triggerEffort !== undefined ? h('span', { className: 'smp-trigger-effort' }, triggerEffort) : null,
+        triggerEffort !== undefined ? h('span', { className: 'smp-trigger-effort' + (maxEffortActive ? ' smp-trigger-effort-max' : '') }, triggerEffort) : null,
         disabled ? h('span', { className: 'smp-spinner' }) : h(ChevronDown)),
         popupNode)
     }
@@ -678,6 +708,7 @@ window.__ModuleLoader__.load({
       { key: 'track', label: 'settings.track', fallback: '#e8eaec' },
       { key: 'thumb', label: 'settings.thumb', fallback: '#ffffff' },
       { key: 'ink', label: 'settings.ink', fallback: '#1f2320' },
+      { key: 'maxColor', label: 'settings.maxColor', fallback: '#ffb300' },
     ]
 
     /**
@@ -693,13 +724,19 @@ window.__ModuleLoader__.load({
       const background = appearanceBackground(appearance) || {}
       const update = (patch) => setAppearance(patch)
 
-      const previewSlider = h('div', { className: 'smp-slider', style: { '--smp-level': '66%' } },
+      const previewSlider = h('div', { className: 'smp-slider smp-slider-max', style: { '--smp-level': '100%' } },
         h('span', { className: 'smp-slider-visual' },
           h('span', { className: 'smp-slider-fill' }),
           h('span', { className: 'smp-slider-marks' }, [0, 1, 2].map((index) => h('span', { key: index }))),
-          h('span', { className: 'smp-slider-thumb' })))
+          h('span', { className: 'smp-slider-thumb' }),
+          h(ParticleField)))
 
       const preview = h('div', { className: 'smp-set-preview' },
+        h('div', { className: 'smp-set-preview-trigger' },
+          h('button', { type: 'button', className: 'smp-trigger', disabled: true },
+            h(ModelGlyph),
+            h('span', { className: 'smp-trigger-name' }, tr('settings.preview.model')),
+            h('span', { className: 'smp-trigger-effort smp-trigger-effort-max' }, tr('settings.preview.effort')))),
         h('div', { className: 'smp-popup smp-set-preview-surface', style: Object.assign({}, vars, background) },
           h('p', { className: 'smp-caption' }, tr('settings.preview.caption')),
           h('p', { className: 'smp-provider' }, 'DeepSeek'),
@@ -808,18 +845,33 @@ window.__ModuleLoader__.load({
       '.smp-effort-reset{grid-column:3;display:grid;place-items:center;height:28px;border:0;border-radius:var(--dsw-radius-sm,8px);background:transparent;color:inherit;cursor:pointer}',
       '.smp-effort-reset:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover,rgba(0,0,0,.06))}',
       '.smp-effort-reset:disabled{opacity:.45;cursor:default}',
-      '.smp-slider{position:relative;height:20px;margin:14px 8px 6px;border-radius:999px;background:var(--smp-track,var(--dsw-alias-bg-layer-2,#e8eaec));box-shadow:inset 0 0 0 1px var(--dsw-alias-border-l1,rgba(0,0,0,.08))}',
-      '.smp-slider-visual{position:absolute;inset:0 11px;pointer-events:none}',
-      '.smp-slider-fill{position:absolute;inset:0 auto 0 -11px;width:calc(11px + var(--smp-level));border-radius:999px;background:var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe));transition:width .18s ease-out}',
-      '.smp-slider-max .smp-slider-fill{width:calc(22px + var(--smp-level))}',
-      '.smp-slider-marks{position:absolute;inset:0 -2px;display:flex;align-items:center;justify-content:space-between}',
-      '.smp-slider-marks>span{width:4px;height:4px;border-radius:50%;background:var(--dsw-alias-bg-overlay,#fff);opacity:.8}',
-      '.smp-slider-thumb{position:absolute;top:50%;left:var(--smp-level);box-sizing:border-box;width:20px;height:20px;transform:translate(-50%,-50%);border-radius:50%;border:2px solid var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe));background:var(--smp-thumb,var(--dsw-alias-bg-overlay,#fff));transition:left .18s ease-out}',
-      '.smp-slider-range{position:absolute;inset:0;width:100%;height:100%;margin:0;appearance:none;opacity:0;cursor:pointer}',
-      '.smp-slider-range::-webkit-slider-thumb{appearance:none;width:22px;height:22px}',
-      '.smp-slider-range::-moz-range-thumb{width:22px;height:22px}',
+      '.smp-slider{position:relative;height:32px;margin:18px 8px 10px;border-radius:999px;background:var(--smp-track,var(--dsw-alias-bg-layer-2,#e8eaec));box-shadow:inset 0 0 0 1px var(--dsw-alias-border-l1,rgba(0,0,0,.08)),inset 0 2px 6px rgba(0,0,0,.10);transition:box-shadow .25s ease}',
+      '.smp-slider-visual{position:absolute;inset:0 16px;pointer-events:none}',
+      '.smp-slider-fill{position:absolute;inset:0 auto 0 -16px;width:calc(16px + var(--smp-level));border-radius:999px;overflow:hidden;background:var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe));transition:width .18s ease-out}',
+      '.smp-slider-fill::after{content:"";position:absolute;inset:0;border-radius:inherit;background:linear-gradient(105deg,transparent 25%,rgba(255,255,255,.55) 48%,transparent 72%);background-size:220% 100%;animation:smp-sheen 2.6s linear infinite;pointer-events:none;mix-blend-mode:screen}',
+      '.smp-slider-dragging .smp-slider-fill,.smp-slider-max .smp-slider-fill{width:calc(32px + var(--smp-level))}',
+      '.smp-slider-max .smp-slider-fill{background:linear-gradient(100deg,var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe)),var(--smp-max-color,#ffb300),var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe)));background-size:220% 100%;animation:smp-flow 2.4s linear infinite;box-shadow:0 0 18px -2px var(--smp-max-color,var(--smp-accent,#4d6bfe))}',
+      '.smp-slider-max .smp-slider-fill::after{animation-duration:1.4s}',
+      '.smp-slider-marks{position:absolute;inset:0 -3px;display:flex;align-items:center;justify-content:space-between;z-index:2}',
+      '.smp-slider-marks>span{width:5px;height:5px;border-radius:50%;background:var(--dsw-alias-bg-overlay,#fff);opacity:.85}',
+      '.smp-slider-thumb{position:absolute;z-index:3;top:50%;left:var(--smp-level);box-sizing:border-box;width:28px;height:28px;transform:translate(-50%,-50%);border-radius:50%;border:3px solid var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe));background:var(--smp-thumb,var(--dsw-alias-bg-overlay,#fff));box-shadow:0 2px 8px rgba(0,0,0,.28);transition:left .18s ease-out,box-shadow .25s ease}',
+      '.smp-slider-thumb::before{content:"";position:absolute;inset:-7px;border-radius:50%;background:var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe));opacity:0;transform:scale(.7);transition:opacity .25s ease,transform .25s ease}',
+      '.smp-slider-dragging .smp-slider-thumb::before,.smp-slider-max .smp-slider-thumb::before{opacity:.28;transform:scale(1);animation:smp-pulse 1.8s ease-in-out infinite}',
+      '.smp-slider-max .smp-slider-thumb{border-color:var(--smp-max-color,#ffb300);box-shadow:0 0 16px -1px var(--smp-max-color,#ffb300),0 2px 8px rgba(0,0,0,.28)}',
+      '.smp-slider-max .smp-slider-thumb::before{background:var(--smp-max-color,#ffb300)}',
+      '.smp-particles{position:absolute;top:50%;left:var(--smp-level);width:0;height:0;pointer-events:none;z-index:2}',
+      '.smp-particle{position:absolute;left:0;top:0;width:var(--smp-p-size,3px);height:var(--smp-p-size,3px);margin:calc(var(--smp-p-size,3px) / -2);border-radius:50%;background:var(--smp-max-color,var(--smp-accent,#4d6bfe));box-shadow:0 0 6px var(--smp-max-color,var(--smp-accent,#4d6bfe));opacity:0;animation:smp-particle 1.15s ease-out infinite;animation-delay:var(--smp-p-delay,0s)}',
+      '.smp-slider-range{position:absolute;inset:0;width:100%;height:100%;margin:0;appearance:none;opacity:0;cursor:pointer;z-index:4}',
+      '.smp-slider-range::-webkit-slider-thumb{appearance:none;width:28px;height:28px}',
+      '.smp-slider-range::-moz-range-thumb{width:28px;height:28px}',
       '.smp-slider:has(.smp-slider-range:focus-visible){outline:2px solid var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe));outline-offset:4px}',
-      '@media (prefers-reduced-motion: reduce){.smp-slider-fill,.smp-slider-thumb{transition:none}.smp-spinner{animation:none}}',
+      '.smp-trigger-effort-max{font-weight:600;color:var(--smp-max-color,var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe)));text-shadow:0 0 10px var(--smp-max-color,var(--smp-accent,#4d6bfe));animation:smp-breathe 2.2s ease-in-out infinite}',
+      '@keyframes smp-sheen{from{background-position:220% 0}to{background-position:-120% 0}}',
+      '@keyframes smp-flow{from{background-position:0 0}to{background-position:220% 0}}',
+      '@keyframes smp-pulse{0%,100%{transform:scale(1);opacity:.22}50%{transform:scale(1.45);opacity:.34}}',
+      '@keyframes smp-breathe{0%,100%{text-shadow:0 0 6px var(--smp-max-color,var(--smp-accent,#4d6bfe))}50%{text-shadow:0 0 16px var(--smp-max-color,var(--smp-accent,#4d6bfe))}}',
+      '@keyframes smp-particle{0%{opacity:0;transform:translate(0,0) scale(.4)}12%{opacity:1}55%{opacity:.85}100%{opacity:0;transform:translate(var(--smp-p-x,0),var(--smp-p-y,0)) scale(.15)}}',
+      '@media (prefers-reduced-motion: reduce){.smp-slider-fill,.smp-slider-thumb{transition:none}.smp-slider-fill::after{animation:none;opacity:0}.smp-slider-max .smp-slider-fill{animation:none}.smp-slider-thumb::before{animation:none}.smp-particle{display:none}.smp-trigger-effort-max{animation:none}.smp-spinner{animation:none}}',
     ].join('\n')
 
     /** Settings-page styles: host tokens only, plus a static preview surface. */
@@ -839,8 +891,9 @@ window.__ModuleLoader__.load({
       '.smp-set-value{color:var(--dsw-alias-label-secondary,#6b7280);font-size:12px}',
       '.smp-set-clear{width:20px;height:20px;border:0;border-radius:50%;background:var(--dsw-alias-interactive-bg-hover,rgba(0,0,0,.06));color:inherit;cursor:pointer;line-height:1;font-size:12px}',
       '.smp-set-preview-wrap{display:flex;flex-direction:column;gap:8px}',
-      '.smp-set-preview{padding:12px;border:1px dashed var(--dsw-alias-border-l2,rgba(0,0,0,.16));border-radius:12px;background:var(--dsw-alias-bg-base,transparent)}',
-      '.smp-popup.smp-set-preview-surface{position:static;width:min(100%,320px);max-height:none;margin:0 auto}',
+      '.smp-set-preview{display:flex;flex-direction:column;gap:12px;padding:12px;border:1px dashed var(--dsw-alias-border-l2,rgba(0,0,0,.16));border-radius:12px;background:var(--dsw-alias-bg-base,transparent)}',
+      '.smp-set-preview-trigger{display:flex;justify-content:center}',
+      '.smp-popup.smp-set-preview-surface{position:static;width:min(100%,360px);max-height:none;margin:0 auto}',
       '.smp-set-preview-row{width:100%;text-align:start}',
       '.smp-set-actions{display:flex;gap:8px}',
       '.smp-set-action{padding:6px 12px;border:1px solid var(--dsw-alias-border-l2,rgba(0,0,0,.16));border-radius:8px;background:transparent;color:inherit;font:inherit;font-size:12px;cursor:pointer}',
