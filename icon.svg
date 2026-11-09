@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Slothy model picker">
+  <rect width="64" height="64" rx="14" fill="#14261c"/>
+  <g fill="#e9f5e6">
+    <rect x="14" y="15" width="24" height="5" rx="2.5"/>
+    <rect x="14" y="26" width="17" height="5" rx="2.5"/>
+  </g>
+  <rect x="42" y="15" width="8" height="5" rx="2.5" fill="#8ea5a0"/>
+  <rect x="14" y="37" width="36" height="5" rx="2.5" fill="#2f4a3a"/>
+  <circle cx="38" cy="39.5" r="7" fill="#60dd06"/>
+  <circle cx="38" cy="39.5" r="2.6" fill="#14261c"/>
+</svg>
