@@ -257,15 +257,15 @@ window.__ModuleLoader__.load({
       }
     }
 
-    /** Deterministic particle burst shape; every dot gets its own travelling vector. */
+    /** Deterministic spark shape: sparks trail backwards inside the track and never leave it. */
     const PARTICLES = Array.from({ length: 16 }, (_, index) => {
-      const angle = (Math.PI * 2 * index) / 16 + (index % 3) * 0.18
-      const distance = 16 + (index % 5) * 8
+      const lane = (index % 7) - 3
+      const drift = 8 + (index % 6) * 7
       return {
         key: index,
         style: {
-          '--smp-p-x': Math.round(Math.cos(angle) * distance) + 'px',
-          '--smp-p-y': Math.round(Math.sin(angle) * distance) + 'px',
+          '--smp-p-x': (-drift) + 'px',
+          '--smp-p-y': (lane * 3) + 'px',
           '--smp-p-delay': (index * 0.075).toFixed(3) + 's',
           '--smp-p-size': (2 + (index % 3)) + 'px',
         },
@@ -604,18 +604,17 @@ window.__ModuleLoader__.load({
         if (level) chooseEffort(level)
       }
 
-      const dragging = dragIndex !== null
       const isMaxLevel = levels.length > 1 && shownIndex === levels.length - 1
       const slider = levels.length > 0
         ? h('div', {
-          className: 'smp-slider' + (isMaxLevel ? ' smp-slider-max' : '') + (dragging ? ' smp-slider-dragging' : ''),
+          className: 'smp-slider' + (isMaxLevel ? ' smp-slider-max' : ''),
           style: { '--smp-level': levelPosition },
         },
         h('span', { className: 'smp-slider-visual', 'aria-hidden': true },
           h('span', { className: 'smp-slider-fill' }),
           h('span', { className: 'smp-slider-marks' }, levels.map((level) => h('span', { key: level.id }))),
           h('span', { className: 'smp-slider-thumb' }),
-          dragging || isMaxLevel ? h(ParticleField) : null),
+          isMaxLevel ? h(ParticleField) : null),
         h('input', {
           className: 'smp-slider-range',
           type: 'range',
@@ -845,33 +844,30 @@ window.__ModuleLoader__.load({
       '.smp-effort-reset{grid-column:3;display:grid;place-items:center;height:28px;border:0;border-radius:var(--dsw-radius-sm,8px);background:transparent;color:inherit;cursor:pointer}',
       '.smp-effort-reset:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover,rgba(0,0,0,.06))}',
       '.smp-effort-reset:disabled{opacity:.45;cursor:default}',
-      '.smp-slider{position:relative;height:32px;margin:18px 8px 10px;border-radius:999px;background:var(--smp-track,var(--dsw-alias-bg-layer-2,#e8eaec));box-shadow:inset 0 0 0 1px var(--dsw-alias-border-l1,rgba(0,0,0,.08)),inset 0 2px 6px rgba(0,0,0,.10);transition:box-shadow .25s ease}',
+      '.smp-slider{position:relative;height:32px;margin:18px 8px 10px;border-radius:999px;background:var(--smp-track,var(--dsw-alias-bg-layer-2,#e8eaec));box-shadow:inset 0 0 0 1px var(--dsw-alias-border-l1,rgba(0,0,0,.08)),inset 0 2px 6px rgba(0,0,0,.10);overflow:hidden;contain:paint}',
       '.smp-slider-visual{position:absolute;inset:0 16px;pointer-events:none}',
-      '.smp-slider-fill{position:absolute;inset:0 auto 0 -16px;width:calc(16px + var(--smp-level));border-radius:999px;overflow:hidden;background:var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe));transition:width .18s ease-out}',
-      '.smp-slider-fill::after{content:"";position:absolute;inset:0;border-radius:inherit;background:linear-gradient(105deg,transparent 25%,rgba(255,255,255,.55) 48%,transparent 72%);background-size:220% 100%;animation:smp-sheen 2.6s linear infinite;pointer-events:none;mix-blend-mode:screen}',
-      '.smp-slider-dragging .smp-slider-fill,.smp-slider-max .smp-slider-fill{width:calc(32px + var(--smp-level))}',
-      '.smp-slider-max .smp-slider-fill{background:linear-gradient(100deg,var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe)),var(--smp-max-color,#ffb300),var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe)));background-size:220% 100%;animation:smp-flow 2.4s linear infinite;box-shadow:0 0 18px -2px var(--smp-max-color,var(--smp-accent,#4d6bfe))}',
-      '.smp-slider-max .smp-slider-fill::after{animation-duration:1.4s}',
+      '.smp-slider-fill{position:absolute;z-index:1;inset:0 auto 0 -16px;width:calc(16px + var(--smp-level));border-radius:999px;overflow:hidden;background:var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe));transition:width .18s ease-out}',
+      '.smp-slider-fill::after{content:"";position:absolute;inset:0;border-radius:inherit;background:linear-gradient(105deg,transparent 25%,rgba(255,255,255,.55) 48%,transparent 72%);background-size:220% 100%;opacity:0;pointer-events:none;mix-blend-mode:screen}',
+      '.smp-slider-max .smp-slider-fill{width:calc(32px + var(--smp-level));background:linear-gradient(100deg,var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe)),var(--smp-max-color,#ffb300),var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe)));background-size:220% 100%;animation:smp-flow 2.4s linear infinite;box-shadow:inset 0 0 0 1px rgba(255,255,255,.22),inset 0 0 12px -4px var(--smp-max-color,#ffb300)}',
+      '.smp-slider-max .smp-slider-fill::after{opacity:1;animation:smp-sheen 1.5s linear infinite}',
       '.smp-slider-marks{position:absolute;inset:0 -3px;display:flex;align-items:center;justify-content:space-between;z-index:2}',
       '.smp-slider-marks>span{width:5px;height:5px;border-radius:50%;background:var(--dsw-alias-bg-overlay,#fff);opacity:.85}',
       '.smp-slider-thumb{position:absolute;z-index:3;top:50%;left:var(--smp-level);box-sizing:border-box;width:28px;height:28px;transform:translate(-50%,-50%);border-radius:50%;border:3px solid var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe));background:var(--smp-thumb,var(--dsw-alias-bg-overlay,#fff));box-shadow:0 2px 8px rgba(0,0,0,.28);transition:left .18s ease-out,box-shadow .25s ease}',
-      '.smp-slider-thumb::before{content:"";position:absolute;inset:-7px;border-radius:50%;background:var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe));opacity:0;transform:scale(.7);transition:opacity .25s ease,transform .25s ease}',
-      '.smp-slider-dragging .smp-slider-thumb::before,.smp-slider-max .smp-slider-thumb::before{opacity:.28;transform:scale(1);animation:smp-pulse 1.8s ease-in-out infinite}',
-      '.smp-slider-max .smp-slider-thumb{border-color:var(--smp-max-color,#ffb300);box-shadow:0 0 16px -1px var(--smp-max-color,#ffb300),0 2px 8px rgba(0,0,0,.28)}',
-      '.smp-slider-max .smp-slider-thumb::before{background:var(--smp-max-color,#ffb300)}',
+      '.smp-slider-thumb::before{content:"";position:absolute;inset:-5px;border-radius:50%;background:var(--smp-max-color,#ffb300);opacity:0;transform:scale(.7);transition:opacity .25s ease,transform .25s ease}',
+      '.smp-slider-max .smp-slider-thumb{border-color:var(--smp-max-color,#ffb300);box-shadow:0 0 12px -2px var(--smp-max-color,#ffb300),0 2px 8px rgba(0,0,0,.28)}',
+      '.smp-slider-max .smp-slider-thumb::before{opacity:.3;transform:scale(1);animation:smp-pulse 1.8s ease-in-out infinite}',
       '.smp-particles{position:absolute;top:50%;left:var(--smp-level);width:0;height:0;pointer-events:none;z-index:2}',
-      '.smp-particle{position:absolute;left:0;top:0;width:var(--smp-p-size,3px);height:var(--smp-p-size,3px);margin:calc(var(--smp-p-size,3px) / -2);border-radius:50%;background:var(--smp-max-color,var(--smp-accent,#4d6bfe));box-shadow:0 0 6px var(--smp-max-color,var(--smp-accent,#4d6bfe));opacity:0;animation:smp-particle 1.15s ease-out infinite;animation-delay:var(--smp-p-delay,0s)}',
+      '.smp-particle{position:absolute;left:0;top:0;width:var(--smp-p-size,3px);height:var(--smp-p-size,3px);margin:calc(var(--smp-p-size,3px) / -2);border-radius:50%;background:var(--smp-max-color,#ffb300);box-shadow:0 0 6px var(--smp-max-color,#ffb300);opacity:0;animation:smp-particle 1.15s ease-out infinite;animation-delay:var(--smp-p-delay,0s)}',
       '.smp-slider-range{position:absolute;inset:0;width:100%;height:100%;margin:0;appearance:none;opacity:0;cursor:pointer;z-index:4}',
       '.smp-slider-range::-webkit-slider-thumb{appearance:none;width:28px;height:28px}',
       '.smp-slider-range::-moz-range-thumb{width:28px;height:28px}',
       '.smp-slider:has(.smp-slider-range:focus-visible){outline:2px solid var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe));outline-offset:4px}',
-      '.smp-trigger-effort-max{font-weight:600;color:var(--smp-max-color,var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe)));text-shadow:0 0 10px var(--smp-max-color,var(--smp-accent,#4d6bfe));animation:smp-breathe 2.2s ease-in-out infinite}',
+      '.smp-trigger-effort-max{font-weight:600;color:var(--smp-max-color,var(--smp-accent,var(--dsw-alias-brand-primary,#4d6bfe)))}',
       '@keyframes smp-sheen{from{background-position:220% 0}to{background-position:-120% 0}}',
       '@keyframes smp-flow{from{background-position:0 0}to{background-position:220% 0}}',
-      '@keyframes smp-pulse{0%,100%{transform:scale(1);opacity:.22}50%{transform:scale(1.45);opacity:.34}}',
-      '@keyframes smp-breathe{0%,100%{text-shadow:0 0 6px var(--smp-max-color,var(--smp-accent,#4d6bfe))}50%{text-shadow:0 0 16px var(--smp-max-color,var(--smp-accent,#4d6bfe))}}',
+      '@keyframes smp-pulse{0%,100%{transform:scale(1);opacity:.22}50%{transform:scale(1.4);opacity:.34}}',
       '@keyframes smp-particle{0%{opacity:0;transform:translate(0,0) scale(.4)}12%{opacity:1}55%{opacity:.85}100%{opacity:0;transform:translate(var(--smp-p-x,0),var(--smp-p-y,0)) scale(.15)}}',
-      '@media (prefers-reduced-motion: reduce){.smp-slider-fill,.smp-slider-thumb{transition:none}.smp-slider-fill::after{animation:none;opacity:0}.smp-slider-max .smp-slider-fill{animation:none}.smp-slider-thumb::before{animation:none}.smp-particle{display:none}.smp-trigger-effort-max{animation:none}.smp-spinner{animation:none}}',
+      '@media (prefers-reduced-motion: reduce){.smp-slider-fill,.smp-slider-thumb{transition:none}.smp-slider-fill::after{animation:none;opacity:0}.smp-slider-max .smp-slider-fill{animation:none}.smp-slider-max .smp-slider-thumb::before{animation:none}.smp-particle{display:none}.smp-spinner{animation:none}}',
     ].join('\n')
 
     /** Settings-page styles: host tokens only, plus a static preview surface. */
