@@ -1,6 +1,6 @@
 {
   "name": "dsh-slothy-model-picker",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "type": "module",
   "description": "Slothy-style model picker for the DeepSeek Harness composer: provider-grouped model list plus reasoning-effort slider.",
   "license": "MIT",
