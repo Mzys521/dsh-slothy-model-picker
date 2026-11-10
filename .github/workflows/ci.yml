@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run tests
+        run: npm test
+      - name: Verify package contents
+        run: |
+          npm pack
+          TARBALL=$(ls dsh-slothy-model-picker-*.tgz | head -n1)
+          echo "tarball: $TARBALL"
+          for f in \
+            package/lib/index.js \
+            package/lib/client.js \
+            package/cordis.patch.yml \
+            package/locale/en.json \
+            package/locale/zh.json \
+            package/icon.svg \
+            package/README.md \
+            package/README.zh.md
+          do
+            tar -tzf "$TARBALL" | grep -qx "$f" || { echo "missing $f"; exit 1; }
+          done
+          echo "package contents ok"
