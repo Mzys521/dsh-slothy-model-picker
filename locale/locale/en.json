@@ -1,6 +1,0 @@
-{
-  "meta": {
-    "title": "Slothy model picker",
-    "description": "Replaces the composer model control with a provider-grouped model list and a reasoning-effort slider."
-  }
-}
