@@ -34,6 +34,8 @@ plugin_manager  action: install_bundle
 
 插件管理器会解析 npm 包、链接到当前 profile 并激活 bundle。
 
+> npm 包尚未发布。首次发布完成前，请使用下面的 GitHub Release 或源码目录安装；维护者参考 [docs/PUBLISHING.md](./docs/PUBLISHING.md)。
+
 ### GitHub Release
 
 1. 从 [Releases](https://github.com/Mzys521/dsh-slothy-model-picker/releases) 下载 `dsh-slothy-model-picker-<版本>.tgz` 并解压。

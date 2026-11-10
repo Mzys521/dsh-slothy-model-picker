@@ -34,6 +34,8 @@ plugin_manager  action: install_bundle
 
 The plugin manager resolves the npm package, links it into the profile, and activates the bundle.
 
+> The npm package is not published yet. Until the first publish, install from the GitHub Release or the source checkout below. Maintainers: see [docs/PUBLISHING.md](./docs/PUBLISHING.md).
+
 ### GitHub Release
 
 1. Download `dsh-slothy-model-picker-<version>.tgz` from [Releases](https://github.com/Mzys521/dsh-slothy-model-picker/releases) and extract it.

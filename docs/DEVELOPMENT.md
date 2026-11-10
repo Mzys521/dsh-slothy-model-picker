@@ -41,6 +41,6 @@ The tests load `lib/client.js` through a fake `window.__ModuleLoader__`, apply t
 2. Update `README.md`, `README.zh.md` and the changelog section.
 3. `npm test` and `npm pack`; confirm the tarball contains `lib/index.js`, `lib/client.js`, `cordis.patch.yml`, `locale/*.json`, `icon.svg`, both READMEs.
 4. Commit and push to `main`.
-5. Publish to npm (`npm publish --access public`).
+5. Publish to npm: either add the `NPM_TOKEN` repository secret and run the **Publish to npm** workflow, or run `npm publish --access public` locally after `npm login`. See [PUBLISHING.md](./PUBLISHING.md).
 6. Create a GitHub Release for the tag with the packed `.tgz` attached.
 7. Reinstall locally from the new artifact and re-run the slot inspection above.
